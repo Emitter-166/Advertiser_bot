@@ -4,43 +4,37 @@ import com.mongodb.client.model.Filters;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.Permission;
 import net.dv8tion.jda.api.entities.ChannelType;
-import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
+import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.bson.Document;
 
 import java.awt.*;
-import java.util.Locale;
 
 public class setup extends ListenerAdapter {
     Database Database = new Database();
 
     @Override
-    public void onMessageReceived(MessageReceivedEvent e){
+    public void onSlashCommandInteraction(SlashCommandInteractionEvent e){
         try{
-            if(e.getChannel().getType().equals(ChannelType.PRIVATE) || e.getAuthor().isSystem()|| !e.getMember().hasPermission(Permission.MODERATE_MEMBERS)) return;
+            if(e.getChannel().getType().equals(ChannelType.PRIVATE) || !e.getMember().hasPermission(Permission.MODERATE_MEMBERS)) return;
         } catch (NullPointerException exception){return;}
-
-        String[] args = e.getMessage().getContentRaw().split(" ");
-
-        if(!args[0].equalsIgnoreCase(".advertiser")) return;
-        switch (args[1].toLowerCase(Locale.ROOT)) {
+        switch (e.getName()) {
             case "help":
-                e.getMessage().replyEmbeds(new EmbedBuilder()
+                e.getInteraction().replyEmbeds(new EmbedBuilder()
                                 .setTitle("Help commands for advertiser")
                                 .setDescription("`/add` **Inserts a new ad** \n")
                                 .appendDescription("`/remove` **remove an ad** \n")
                                 .appendDescription("`/show-ads` **See all current ads** \n")
                                 .appendDescription("`/ad-info` **see info about a current ad** \n")
-                                .addField("**Command description**", "" +
-                                                "       \n" +
-                                                "**Adding new Ad** \n" +
-                                                "Command usage:`.advertiser add <#channelMention> <repeat_duration> <send from after> <ad_name> <image_url::text>` \n" +
-                                                "Example: `.advertiser add` <#961068408663846983> `<60> <example ad> <https://tenor.com/view/rick-roll-rick-ashley-never-gonna-give-you-up-gif-22113173::this is an example text>` " +
-                                                "ㅤㅤㅤㅤㅤㅤㅤㅤ\n" +
-                                                "**Useful info:** Duration is always on minutes. Leave url or text blank if there is none, but don't forget :: in it, " +
-                                                "there can be multiple images and texts added, to add multiple images/texts on a single ad, put comma + whitespace in between like in this format: `<image_url::text, image_url::text, image_url::text>`, like this" +
-                                                ". If there is multiple content on a single ad, it will be sent in a random order each time it's time to send an ad. perfect for trivia questions/sending random images from a library ",
-                                        false)
+                                .addField("About ad content", "" +
+                                        "you can add as many contents as you want, each separated by `, ` a coma and a white space. If there is multiple \n" +
+                                        "contents, they will be chosen randomly. \n" +
+                                        "each content block can have multiple texts that will be sent each one at a time. there can be many texts as you want there \n" +
+                                        "to be. texts are separated by `::`. (note that messages can be set to image links too)\n" +
+                                        "ㅤㅤㅤㅤㅤㅤㅤㅤ\n" +
+                                        "**Example:** \n" +
+                                        "ㅤㅤㅤㅤㅤㅤㅤㅤ\n" +
+                                        "`message one::message two::message three, another one::another two::another three`", false)
 
                                 .build())
                         .mentionRepliedUser(false).queue();
@@ -48,62 +42,37 @@ public class setup extends ListenerAdapter {
 
 
             case "add":
-                e.getMessage().reply("`Adding new ad...`")
-                        .mentionRepliedUser(false)
-                        .queue(
-                                message -> {
-                                    try {
-                                        Thread.sleep(1000);
-                                    } catch (InterruptedException ex) {
-                                        throw new RuntimeException(ex);
-                                    }
-                                    message.delete().queue();
-                                }
-                        );
-                String[] values;
+                e.getInteraction().reply("`Inserting new ad...`")
+                        .setEphemeral(true)
+                        .queue();
+
                 long duration_milliseconds;
                 StringBuilder ad_name;
                 String content;
                 String channelId;
-                try {
-                    values = e.getMessage().getContentRaw().replace(">", "").split("<");
-                    channelId = values[1].replace("#", "");
-                    duration_milliseconds = Long.parseLong(values[2].replace(" ", "")) * 60_000L;
-                    ad_name = new StringBuilder(values[3]).delete(values[3].length() - 1, values[3].length());
-                    if(ad_name.toString().charAt(ad_name.length() -1) == ' '){
-                        ad_name.deleteCharAt(ad_name.length() - 1);
-                    }
-                    content = values[4];
+                long start_delay;
 
+                    channelId = e.getInteraction().getOption("advertisement-channel").getAsGuildChannel().getId();
+                    duration_milliseconds =   e.getInteraction().getOption("delay").getAsInt() * 60_000L;
+                    start_delay = (e.getInteraction().getOption("start-delay").getAsInt() * 60_000L) + System.currentTimeMillis();
+                    ad_name = new StringBuilder(e.getInteraction().getOption("ad-name").getAsString());
+                    content = e.getInteraction().getOption("contents").getAsString();
 
-                } catch (IndexOutOfBoundsException exception) {
-                    e.getMessage().reply("`wrong usage!`")
-                            .mentionRepliedUser(false)
-                            .queue(message ->
-                            {
-                                try {
-                                    Thread.sleep(10000);
-                                } catch (InterruptedException ex) {
-                                    throw new RuntimeException(ex);
-                                }
-                                message.delete().queue();
-                            });
-                    return;
-                }
-
-                try {
+                    try {
                     Database.set(e.getGuild().getId(), "serverId", "adIds",   ad_name +", " , true);
                     Database.set(ad_name.toString(), "adId", "channel", channelId, false);
                     Database.set(ad_name.toString(), "adId", "text", content, false);
                     Database.set(ad_name.toString(), "adId", "repeat_every", duration_milliseconds, false);
+                    Database.set(ad_name.toString(), "adId", "last_sent_on", start_delay, false);
 
-                } catch (InterruptedException ex) {
+
+                    } catch (InterruptedException ex) {
                     throw new RuntimeException(ex);
                 }
-                e.getMessage().reply("`ad successfully added! do .advertiser ads to see all the ads`").queue();
+                e.getChannel().sendMessage("`ad successfully added! do /ads to see all the ads`").queue();
                 break;
 
-            case "ads":
+            case "show-ads":
                 StringBuilder result = new StringBuilder();
                 String[] ad_names;
                 try {
@@ -114,62 +83,46 @@ public class setup extends ListenerAdapter {
                 for(int i = 0; i < ad_names.length; i++){
                     result.append(String.format("`%s.` **%s** \n", i+1, ad_names[i]));
                 }
-                e.getMessage().replyEmbeds(new EmbedBuilder()
+                e.getInteraction().replyEmbeds(new EmbedBuilder()
                         .setTitle("Current ads")
                         .setDescription(result.toString())
                         .build()).mentionRepliedUser(false).queue();
                 break;
 
-            case "adinfo":
+            case "ad-info":
                 Document doc;
-                StringBuilder adName = new StringBuilder();
-                for(int i = 2; i < args.length; i++){
-                    adName.append(args[i]).append(" ");
-                }
+                String adName = e.getInteraction().getOption("ad-name").getAsString();
 
                 try {
-                    doc = Database.get(new StringBuilder(adName).deleteCharAt(adName.length() - 1).toString(), "adId");
+                    doc = Database.get(adName, "adId");
                 } catch (InterruptedException ex) {
                     throw new RuntimeException(ex);
                 }
                 String channel = "<#" + doc.get("channel").toString().replace(" ", "") + ">";
                 String content_info = doc.get("text").toString();
                 String repeating_time_in_minutes = String.valueOf((Long.parseLong(doc.get("repeat_every").toString()) / 60_000));
-                String last_sent = String.valueOf(((System.currentTimeMillis() - (Long.parseLong(doc.get("last_sent_on").toString()))) / 60_000));
 
+                StringBuilder last_sent = new StringBuilder(String.valueOf(Long.parseLong(doc.get("last_sent_on").toString())));
+                last_sent.replace(last_sent.length() -4 ,last_sent.length() -1, "");
 
-
-                e.getMessage().replyEmbeds(new EmbedBuilder()
+                e.replyEmbeds(new EmbedBuilder()
                         .setTitle("Ad info")
                         .setDescription(String.format("**Ad name:** `%s` \n", adName))
                         .appendDescription(String.format("**Ad channel:** %s \n", channel))
                         .appendDescription(String.format("**Repeat every:** `%s minutes` \n", repeating_time_in_minutes))
-                        .appendDescription(String.format("**Last sent:** `%s minutes ago` \n", last_sent))
+                        .appendDescription(String.format("**Last sent:** <t:%s:R> \n", last_sent))
                         .appendDescription(String.format("**Ad content:** `%s`", content_info))
                         .setColor(Color.WHITE)
 
-                        .build()).mentionRepliedUser(false).queue();
+                        .build()).queue();
                 break;
 
             case "remove":
-                String ad_name_to_remove = "";
-                for(int i = 2; i < args.length; i++){
-                    ad_name_to_remove += args[i] + " ";
-                }
-                e.getMessage().reply(String.format("`Deleting %s...`", ad_name_to_remove)).mentionRepliedUser(false).queue(
-                        message -> {
-                            try {
-                                Thread.sleep(2000);
-                            } catch (InterruptedException ex) {
-                                throw new RuntimeException(ex);
-                            }
-                            message.delete().queue();
-                        }
-                );
+                String ad_name_to_remove =  e.getInteraction().getOption("ad-name").getAsString();
                 try {
-                    Database.set(e.getGuild().getId(), "serverId", "adIds", Database.get(e.getGuild().getId(), "serverId").get("adIds").toString().replace(new StringBuilder(ad_name_to_remove).deleteCharAt(ad_name_to_remove.length() -1) + ", ", ""), false);
-                    Database.collection.deleteOne(Filters.eq("adId", new StringBuilder(ad_name_to_remove).deleteCharAt(ad_name_to_remove.length() -1).toString()));
-                    e.getMessage().reply("`Successfully removed " + ad_name_to_remove + "`").mentionRepliedUser(false).queue();
+                    Database.set(e.getGuild().getId(), "serverId", "adIds", Database.get(e.getGuild().getId(), "serverId").get("adIds").toString().replace(ad_name_to_remove + ", ", ""), false);
+                    Database.collection.deleteOne(Filters.eq("adId", ad_name_to_remove));
+                    e.getInteraction().reply("`Successfully removed " + ad_name_to_remove + "`").mentionRepliedUser(false).queue();
                 } catch (InterruptedException ex) {
                     throw new RuntimeException(ex);
                 }

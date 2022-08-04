@@ -5,24 +5,24 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
 import org.bson.Document;
 import org.example.Main;
+import org.example.tokens;
+
 import java.util.Arrays;
 import java.util.Timer;
 import java.util.TimerTask;
 
 public class counter extends ListenerAdapter {
+
     static Database Database = new Database();
-    int counter = 0;
-    @Override
-    public void onMessageReceived(MessageReceivedEvent e){
+    public static void start(){
         Timer timer = new Timer();
         timer.scheduleAtFixedRate(new TimerTask() {
             @Override
             public void run() {
-                sendAds(e.getGuild().getId());
+                sendAds(tokens.kai_id);
             }
-        }, 30_000, 10_000);
+        }, 30_000, 1_000);
     }
-
 
     public static void sendAds(String serverId){
 
@@ -37,7 +37,7 @@ public class counter extends ListenerAdapter {
 
                     if( System.currentTimeMillis() - time_sent > repeat_every){
                         Database.set(ad, "adId", "last_sent_on", System.currentTimeMillis(), false);
-
+                        if(doc.get("channel").toString().equalsIgnoreCase("")) return;
                         TextChannel channel = Main.jda.getTextChannelById(doc.get("channel").toString().replace(" ", ""));
                         String[] text = doc.get("text").toString().split(", ");
                         String[] toSend  = text[(int) Math.floor(Math.random() * text.length)].split("::");
