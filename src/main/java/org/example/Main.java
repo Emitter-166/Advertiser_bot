@@ -12,7 +12,6 @@ public class Main {
     public static JDA jda;
     public static void main(String[] args) throws LoginException, InterruptedException {
          jda = JDABuilder.createLight(tokens.token)
-                .addEventListeners(new counter())
                  .addEventListeners(new setup())
                 .build().awaitReady();
          counter.start();
